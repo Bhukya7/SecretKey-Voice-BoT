@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecretKey Voice Bot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        #chat-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        #output {
+            min-height: 200px;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }
+        #status {
+            margin: 10px 0;
+            font-style: italic;
+            color: #666;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <h1>SecretKey Voice Bot</h1>
+        <div id="output">The bot will start speaking automatically. Say "stop" or "exit" to end.</div>
+        <div id="status"></div>
+        <button id="start-btn">Start Bot</button>
+        <button id="stop-btn" style="display:none;">Stop Bot</button>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        const status = document.getElementById('status');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        
+        // Speech Recognition
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+        }
+
+        // Speech Synthesis
+        const synth = window.speechSynthesis;
+        let isActive = false;
+
+        function speak(text, callback) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.2;
+            utterance.onend = callback;
+            synth.speak(utterance);
+        }
+
+        function startListening() {
+            if (!recognition) {
+                output.textContent = 'Speech recognition not supported in this browser.';
+                return;
+            }
+            if (!isActive) return;
+
+            recognition.start();
+            status.textContent = 'Listening... (say "stop" or "exit" to end)';
+        }
+
+        function askQuestion(question) {
+            fetch('/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ question: question })
+            })
+            .then(response => response.json())
+            .then(data => {
+                output.textContent += `\nSecretKey: ${data.response}`;
+                status.textContent = '';
+                speak(data.response, () => {
+                    if (data.stop) {
+                        stopBot();
+                    } else if (isActive) {
+                        startListening();
+                    }
+                });
+            })
+            .catch(error => {
+                output.textContent += '\nError: Something went wrong!';
+                status.textContent = '';
+                console.error('Error:', error);
+                if (isActive) {
+                    startListening();
+                }
+            });
+        }
+
+        if (recognition) {
+            recognition.onstart = () => {
+                status.textContent = 'Listening... (say "stop" or "exit" to end)';
+            };
+
+            recognition.onresult = (event) => {
+                const question = event.results[0][0].transcript;
+                output.textContent += `\nYou: ${question}`;
+                status.textContent = 'Processing...';
+                askQuestion(question);
+            };
+
+            recognition.onend = () => {
+                if (isActive && !synth.speaking) {
+                    startListening();
+                }
+            };
+
+            recognition.onerror = (event) => {
+                status.textContent = 'Error: ' + event.error;
+                if (isActive) {
+                    setTimeout(startListening, 1000);
+                }
+            };
+        }
+
+        function startBot() {
+            if (!SpeechRecognition) {
+                output.textContent = 'Speech recognition not supported in this browser.';
+                return;
+            }
+            
+            isActive = true;
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+            output.textContent = '';
+            speak("Hello! I'm SecretKey. Ask me anything or say stop to end.", startListening);
+        }
+
+        function stopBot() {
+            isActive = false;
+            recognition.stop();
+            synth.cancel();
+            startBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+            status.textContent = '';
+            output.textContent += '\nBot stopped. Click "Start Bot" to begin again.';
+        }
+
+        startBtn.addEventListener('click', startBot);
+        stopBtn.addEventListener('click', stopBot);
+    </script>
+</body>
+</html>
