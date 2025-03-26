@@ -9,9 +9,9 @@ load_dotenv()
 def initialize_openai():
     """Initialize OpenAI client"""
     try:
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("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")
         if not api_key:
-            raise ValueError("OPENAI_API_KEY not found in .env file")
+            # raise ValueError("OPENAI_API_KEY not found in .env file")
         return OpenAI(api_key=api_key)
     except Exception as e:
         print(f"OpenAI Initialization Error: {e}")
